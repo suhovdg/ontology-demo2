@@ -46,7 +46,7 @@
 
       if(p.endsWith('#subClassOf')){
         addNode(s); addNode(o);
-        edges.push({data:{id:`sub_${s}_${o}`,source:s,target:o,label:'subClassOf'}});
+        edges.push({data:{id:`sub_${s}_${o}`,source:s,target:o,label:'Относится к'}});
       }
       if(p.endsWith('#domain')||p.endsWith('#range')){
         addNode(s,'Property'); addNode(o);
@@ -95,7 +95,7 @@
           'text-background-padding':2
       }},
       /* subClassOf ----------------------------------------------------------- */
-      { selector:'edge[label="subClassOf"]', style:{
+      { selector:'edge[label="Относится к"]', style:{
           'line-color':'#2196f3',
           'target-arrow-color':'#2196f3',
           'target-arrow-shape':'triangle'
