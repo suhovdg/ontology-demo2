@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Ontology → Cytoscape.js (physics + arrows + node shapes)</title>
+<style>
+  body{margin:0;font-family:sans-serif}
+  #cy{width:100vw;height:90vh;display:block}
+  #panel{padding:6px;background:#f5f5f5;border-bottom:1px solid #ddd}
+  #panel button{margin-right:4px}
+</style>
+</head>
+<body>
+  <div id="panel">
+    <button id="btnStart">Physics: start</button>
+    <button id="btnStop">Physics: stop</button>
+    │ Layout:
+    <button data-layout="breadthfirst">Hierarchy</button>
+    <button data-layout="circle">Circle</button>
+    <span id="info"></span>
+  </div>
+  <div id="cy"></div>
+
+  <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-cose-bilkent@4.0.0/cytoscape-cose-bilkent.js"></script>
+
+  <script type="module">
+  import { Parser } from "https://esm.sh/n3@1.14.0";
+  const info = t => document.getElementById('info').textContent = t;
+
+  /* ---------- TTL → элементы ---------- */
+  async function ttlToCyElements(url){
+    const ttl = await fetch(url).then(r=>{ if(!r.ok) throw new Error(url); return r.text();});
+    const quads = new Parser().parse(ttl);
+    const nodes=new Map(), edges=[];
+
+    const addNode=(iri,type='Class')=>{
+      if(!nodes.has(iri))
+        nodes.set(iri,{data:{id:iri,label:iri.split(/[\/#]/).pop(),type}});
+    };
+
+    quads.forEach(q=>{
+      const s=q.subject.value,p=q.predicate.value,o=q.object.value;
+      if(p.endsWith('#type') && o.endsWith('#Class'))    addNode(s,'Class');
+      if(p.endsWith('#type') && o.endsWith('#Property')) addNode(s,'Property');
+
+      if(p.endsWith('#subClassOf')){
+        addNode(s); addNode(o);
+        edges.push({data:{id:`sub_${s}_${o}`,source:s,target:o,label:'subClassOf'}});
+      }
+      if(p.endsWith('#domain')||p.endsWith('#range')){
+        addNode(s,'Property'); addNode(o);
+        const pred=p.split('#').pop();                       // domain | range
+        edges.push({data:{id:`${pred}_${s}_${o}`,source:s,target:o,label:pred}});
+      }
+    });
+    return [...nodes.values(),...edges];
+  }
+
+  /* ---------- Создание графа ---------- */
+  const cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements : await ttlToCyElements('ontology.ttl'),
+    layout   : {name:'preset'},        // координат нет, запускаем физику вручную
+    style    : [
+      /* --- узлы -------------------------------------------------------------- */
+      { selector:'node', style:{
+          'label':'data(label)',
+          'color':'#fff',
+          'text-valign':'center',
+          'text-outline-width':2,
+          'text-outline-color':'#555'
+      }},
+      /* Class = овал (ellipse) ------------------------------------------------- */
+      { selector:'node[type="Class"]', style:{
+          'shape':'ellipse',
+          'background-color':'#4682b4'
+      }},
+      /* Property = квадрат (rectangle) ---------------------------------------- */
+      { selector:'node[type="Property"]', style:{
+          'shape':'rectangle',
+          'background-color':'#ffbf00'
+      }},
+      /* --- базовый стиль ребра ---------------------------------------------- */
+      { selector:'edge', style:{
+          'curve-style':'bezier',
+          'width':2,
+          'line-color':'#999',
+          'target-arrow-shape':'triangle',
+          'target-arrow-color':'#999',
+          'label':'data(label)',
+          'font-size':9,
+          'text-background-opacity':1,
+          'text-background-color':'#fff',
+          'text-background-padding':2
+      }},
+      /* subClassOf ----------------------------------------------------------- */
+      { selector:'edge[label="subClassOf"]', style:{
+          'line-color':'#2196f3',
+          'target-arrow-color':'#2196f3',
+          'target-arrow-shape':'triangle'
+      }},
+      /* domain --------------------------------------------------------------- */
+      { selector:'edge[label="domain"]', style:{
+          'line-color':'#4caf50',
+          'target-arrow-color':'#4caf50',
+          'target-arrow-shape':'circle'
+      }},
+      /* range ---------------------------------------------------------------- */
+      { selector:'edge[label="range"]', style:{
+          'line-color':'#ff9800',
+          'target-arrow-color':'#ff9800',
+          'target-arrow-shape':'diamond'
+      }},
+      /* выбранные элементы --------------------------------------------------- */
+      { selector:':selected', style:{'border-width':4,'border-color':'#e91e63'}}
+    ]
+  });
+
+  info(`${cy.nodes().length} nodes / ${cy.edges().length} edges`);
+
+  /* ---------- Физика (cose-bilkent) ---------- */
+  let physics;
+  const physicsOpts={
+    name:'cose-bilkent',
+    animate:'end',
+    randomize:true, fit:false, refresh:30,
+    nodeRepulsion:4500, idealEdgeLength:120,
+    edgeElasticity:0.45, gravity:0.25,
+    gravityRangeCompound:1.5, numIter:2500
+  };
+  const startPhysics=()=>{ stopPhysics(); physics=cy.layout(physicsOpts); physics.run();};
+  const stopPhysics =()=>{ if(physics) physics.stop(); };
+
+  startPhysics();            // запустили сразу при загрузке
+
+  /* ---------- UI ---------- */
+  document.getElementById('btnStart').onclick=startPhysics;
+  document.getElementById('btnStop').onclick =stopPhysics;
+  document.querySelectorAll('#panel button[data-layout]')
+          .forEach(b=>b.onclick=()=>{
+              stopPhysics();
+              cy.layout({name:b.dataset.layout,animate:true}).run();
+          });
+
+  cy.on('tap','node',e=>console.log('Node IRI:',e.target.id()));
+  </script>
+</body>
+</html>

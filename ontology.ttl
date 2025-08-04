@@ -1,0 +1,12 @@
+@prefix :      <http://ex.org/> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+
+:Person    a rdfs:Class .
+:Employee  a rdfs:Class ; rdfs:subClassOf :Person .
+:Company   a rdfs:Class .
+:Emitent   a rdfs:Class ; rdfs:subClassOf :Company.
+
+:worksFor  a rdf:Property ;
+           rdfs:domain :Person ;
+           rdfs:range  :Company .
